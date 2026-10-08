@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{font-family:Arial,sans-serif;margin:16px;color:#14241c;background:#f4f7f5}
+  h1{font-size:20px;margin:0 0 4px;color:#0f6b4b}
+  .sub{color:#5d6f66;font-size:13px;margin-bottom:14px}
+  select{padding:6px 10px;font-size:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+  .k{background:#fff;border:1px solid #dbe4df;border-radius:12px;padding:14px}
+  .k .n{font-size:13px;color:#5d6f66}
+  .k .v{font-size:32px;font-weight:bold;margin:6px 0}
+  .ok{color:#1d7a46}.no{color:#b3261e}
+  .m{font-size:12.5px;color:#5d6f66}
+  table{border-collapse:collapse;margin-top:16px;background:#fff;font-size:13px;width:100%}
+  th,td{border:1px solid #dbe4df;padding:6px 8px;text-align:right} th:first-child,td:first-child{text-align:left}
+</style>
+</head>
+<body>
+  <h1>LoteSeguro · Tablero (Apps Script)</h1>
+  <div class="sub" id="info">Leyendo Supabase…</div>
+  <label>Fecha de corte: <select id="mes"></select></label>
+  <div class="kpis" id="kpis"></div>
+  <table id="hist"></table>
+<script>
+  const NOM = {I1:'% lotes por vencer', I2:'% lotes vencidos en anaquel', I3:'% valor en riesgo', I4:'% canje gestionado'};
+  const MAX = {I1:true, I2:true, I3:true, I4:false};
+  let D;
+  const pct = v => v == null ? '—' : (v*100).toFixed(1) + ' %';
+  google.script.run.withSuccessHandler(d => {
+    D = d;
+    document.getElementById('info').textContent = d.total + ' registros leídos desde Supabase · ' + new Date(d.leidoEn).toLocaleString('es-PE');
+    const sel = document.getElementById('mes');
+    sel.innerHTML = d.meses.map(m => '<option>' + m.corte + '</option>').join('');
+    sel.value = d.meses[d.meses.length - 1].corte;
+    sel.onchange = pintar; pintar(); historia();
+  }).withFailureHandler(e => document.getElementById('info').textContent = 'Error: ' + e.message).getIndicadores();
+
+  function cumple(id, v){ if (v == null) return null; return MAX[id] ? v <= D.umbrales[id] : v >= D.umbrales[id]; }
+  function pintar(){
+    const m = D.meses.find(x => x.corte === document.getElementById('mes').value);
+    document.getElementById('kpis').innerHTML = ['I1','I2','I3','I4'].map(id => {
+      const k = m[id], c = cumple(id, k.v);
+      return '<div class="k"><div class="n">' + id + ' · ' + NOM[id] + '</div>' +
+        '<div class="v ' + (c == null ? '' : c ? 'ok' : 'no') + '">' + pct(k.v) + '</div>' +
+        '<div class="m">' + k.n + ' / ' + k.d + ' · umbral ' + (MAX[id] ? '≤ ' : '≥ ') + pct(D.umbrales[id]) +
+        '<br>Registros del corte: ' + m.registros + '</div></div>';
+    }).join('');
+  }
+  function historia(){
+    let h = '<tr><th>Corte</th><th>Registros</th><th>I1</th><th>I2</th><th>I3</th><th>I4</th></tr>';
+    D.meses.forEach(m => h += '<tr><td>' + m.corte + '</td><td>' + m.registros + '</td><td>' + pct(m.I1.v) + '</td><td>' +
+      pct(m.I2.v) + '</td><td>' + pct(m.I3.v) + '</td><td>' + pct(m.I4.v) + '</td></tr>');
+    document.getElementById('hist').innerHTML = h;
+  }
+</script>
+</body>
+</html>
